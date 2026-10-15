@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>肿瘤—免疫—IL-2 动力学模型 · 交互式可视化</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --series-2: #008300;
+    --series-3: #e87ba4;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --series-2: #008300;
+      --series-3: #d55181;
+      --good: #0ca30c;
+      --serious: #ec835a;
+      --critical: #d03b3b;
+      --accent: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #008300;
+    --series-3: #d55181;
+    --good: #0ca30c;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --accent: #3987e5;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  header {
+    padding: 22px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-1);
+  }
+  header h1 { margin: 0 0 6px; font-size: 19px; font-weight: 650; letter-spacing: .2px; }
+  header .sub { color: var(--ink-2); font-size: 13px; max-width: 920px; }
+  header .sub em { font-style: normal; color: var(--muted); }
+  .header-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .pill { font-size: 11.5px; color: var(--ink-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+  .spacer { flex: 1; }
+
+  button {
+    font-family: inherit; font-size: 12.5px; border: 1px solid var(--border);
+    background: var(--surface-1); color: var(--ink); border-radius: 7px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--baseline); }
+
+  .layout {
+    display: grid; grid-template-columns: 320px 1fr; gap: 18px;
+    padding: 18px 28px 40px; align-items: start;
+  }
+  @media (max-width: 920px) { .layout { grid-template-columns: 1fr; } }
+
+  aside { display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 15px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .card .hint { font-size: 11px; color: var(--muted); margin: 0 0 10px; }
+
+  .field { margin: 11px 0; }
+  .field .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .field label { font-size: 12.5px; color: var(--ink-2); }
+  .field .val { font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .field input[type=range] {
+    width: 100%; margin-top: 6px; -webkit-appearance: none; appearance: none;
+    height: 4px; border-radius: 2px; background: var(--grid); outline: none; cursor: pointer;
+  }
+  .field input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--border); cursor: pointer;
+  }
+  .field input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-1); cursor: pointer;
+  }
+
+  .presets { display: flex; flex-direction: column; gap: 6px; }
+  .presets button { text-align: left; padding: 7px 10px; }
+  .presets button small { display: block; color: var(--muted); font-weight: 400; }
+
+  main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  .outcome { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 12px 16px; }
+  .outcome .badge {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; padding: 6px 12px; border-radius: 8px;
+  }
+  .outcome .metrics { display: flex; gap: 20px; flex-wrap: wrap; flex: 1; }
+  .metric { min-width: 92px; }
+  .metric .k { font-size: 11px; color: var(--muted); }
+  .metric .v { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .metric .v small { font-size: 11px; font-weight: 400; color: var(--muted); }
+  .thresholds { font-size: 11.5px; color: var(--ink-2); display: flex; gap: 14px; flex-wrap: wrap; }
+  .thresholds b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .chart-card { position: relative; }
+  .chart-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .chart-head h3 { margin: 0; font-size: 13.5px; font-weight: 650; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+  .legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  .canvas-wrap { position: relative; width: 100%; }
+  canvas { display: block; width: 100%; }
+  .gbar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .gbar .grad { width: 140px; height: 8px; border-radius: 4px; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px;
+    padding: 7px 9px; font-size: 11.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); z-index: 5;
+    font-variant-numeric: tabular-nums;
+  }
+  .tooltip .trow { display: flex; gap: 10px; justify-content: space-between; }
+  .tooltip .trow .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .tooltip .tlabel { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+
+  .foot { font-size: 11px; color: var(--muted); padding: 0 28px 30px; max-width: 1000px; }
+  .foot code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>肿瘤 — 免疫效应细胞 — IL-2 动力学模型</h1>
+  <div class="sub">
+    基于 Kirschner &amp; Panetta, <em>J. Math. Biol.</em> 37:235–252 (1998) 的经典三群体常微分方程模型。
+    调节左侧参数，直观观察肿瘤抗原性、免疫杀伤与免疫治疗（ACI / IL-2）对肿瘤命运的影响。
+  </div>
+  <div class="header-row">
+    <span class="pill">E(t) 效应细胞</span>
+    <span class="pill">T(t) 肿瘤细胞</span>
+    <span class="pill">I<sub>L</sub>(t) 白介素-2</span>
+    <span class="spacer"></span>
+    <button id="btnTheme">切换明暗</button>
+    <button id="btnExport">导出数据 CSV</button>
+    <button id="btnReset">重置参数</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="card">
+      <h2>核心参数</h2>
+      <p class="hint">论文强调的关键变量：抗原性 c 与免疫杀伤 a 主导动力学；s₁、s₂ 为治疗输入。</p>
+      <div id="group-core"></div>
+    </div>
+    <div class="card">
+      <h2>初始条件</h2>
+      <div id="group-ic"></div>
+    </div>
+    <div class="card">
+      <h2>模拟</h2>
+      <div id="group-sim"></div>
+    </div>
+    <div class="card">
+      <h2>预设场景</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="card">
+      <h2>高级参数</h2>
+      <p class="hint">其余速率常数与饱和常数（Table 1）。</p>
+      <div id="group-adv"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="card outcome" id="outcome"></div>
+
+    <div class="card chart-card">
+      <div class="chart-head">
+        <h3>时间演化（对数纵轴）</h3>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--series-1)"></span>效应细胞 E</span>
+          <span><span class="sw" style="background:var(--series-2)"></span>肿瘤细胞 T</span>
+          <span><span class="sw" style="background:var(--series-3)"></span>IL-2</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="cvTime" style="height:300px"></canvas>
+        <div class="tooltip" id="tip"></div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <div class="chart-head">
+        <h3>相图 · 效应细胞 vs 肿瘤（双对数，颜色 = 时间）</h3>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="cvPhase" style="height:330px"></canvas>
+      </div>
+      <div class="gbar">时间起点 <span class="grad" id="gradBar"></span> 时间终点</div>
+    </div>
+  </main>
+</div>
+
+<p class="foot">
+  模型：<code>dE/dt = cT − μ₂E + p₁E·I<sub>L</sub>/(g₁+I<sub>L</sub>) + s₁</code> ；
+  <code>dT/dt = r₂T(1−bT) − aET/(g₂+T)</code> ；
+  <code>dI<sub>L</sub>/dt = p₂ET/(g₃+T) − μ₃I<sub>L</sub> + s₂</code>。
+  关键阈值：ACI 清除阈值 <code>s₁* = r₂g₂μ₂/a = 540</code>；IL-2 失控阈值
+  <code>s₂* = μ₂μ₃g₁/(p₁−μ₂) ≈ 6.35×10⁷</code>（超出后免疫系统无界增殖，对应“毛细血管渗漏综合征”）。
+  数值积分采用自适应步长 Dormand–Prince 5(4)（RK45）；纵轴为对数刻度，覆盖 1~10⁹ 的细胞数量级跨度。
+</p>
+
+<script>
+"use strict";
+/* ============================================================
+   Kirschner & Panetta (1998) tumor–immune–IL-2 model
+   ============================================================ */
+
+const seqRamp = ['#cde2fb','#b7d3f6','#9ec5f4','#86b6ef','#6da7ec','#5598e7','#3987e5','#2a78d6','#256abf','#1c5cab','#184f95','#104281','#0d366b'];
+
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#000'; }
+function palette(){
+  return {
+    surface: cssVar('--surface-1'), ink: cssVar('--ink'), ink2: cssVar('--ink-2'),
+    muted: cssVar('--muted'), grid: cssVar('--grid'), baseline: cssVar('--baseline'),
+    s1: cssVar('--series-1'), s2: cssVar('--series-2'), s3: cssVar('--series-3'),
+    good: cssVar('--good'), serious: cssVar('--serious'), critical: cssVar('--critical'),
+  };
+}
+
+/* ---------- parameters ---------- */
+const P = {
+  c: 0.03, a: 1, r2: 0.18, b: 1e-9,
+  mu2: 0.03, mu3: 10, p1: 0.1245, p2: 5,
+  g1: 2e7, g2: 1e5, g3: 1e3,
+  s1: 0, s2: 0,
+  E0: 1e5, T0: 1e5, IL0: 0,
+  Tmax: 700,
+};
+const DEFAULTS = JSON.parse(JSON.stringify(P));
+
+function deriv(y, p){
+  const E = y[0], T = y[1], IL = y[2];
+  return [
+    p.c*T - p.mu2*E + (p.p1*E*IL)/(p.g1 + IL) + p.s1,
+    p.r2*T*(1 - p.b*T) - (p.a*E*T)/(p.g2 + T),
+    (p.p2*E*T)/(p.g3 + T) - p.mu3*IL + p.s2
+  ];
+}
+
+/* ---------- Dormand–Prince RK45 (adaptive) ---------- */
+function rk45(y0, t0, t1, p){
+  const a = [
+    [], [1/5], [3/40, 9/40], [44/45, -56/15, 32/9],
+    [19372/6561, -25360/2187, 64448/6561, -212/729],
+    [9017/3168, -355/33, 46732/5247, 49/176, -5103/18656],
+    [35/384, 0, 500/1113, 125/192, -2187/6784, 11/84]
+  ];
+  const c = [0, 1/5, 3/10, 4/5, 8/9, 1, 1];
+  const b5 = [35/384, 0, 500/1113, 125/192, -2187/6784, 11/84, 0];
+  const b4 = [5179/57600, 0, 7571/16695, 393/640, -92097/339200, 187/2100, 1/40];
+  const atol = 1e-8, rtol = 1e-6, hmax = 25;
+  const hmin = Math.max(1e-5, (t1 - t0) / 2e6);
+
+  let y = y0.slice(), t = t0;
+  let h = Math.min(hmax, (t1 - t0) / 200);
+  const pts = [{ t, y: y.slice() }];
+  let guard = 0;
+
+  while (t < t1 - 1e-12){
+    if (++guard > 3e6) break;
+    if (t + h > t1) h = t1 - t;
+    if (h < hmin) h = hmin;
+
+    const k = [[],[],[],[],[],[],[]];
+    let y5 = null, accepted = false, errmax = 0;
+    while (true){
+      for (let s = 0; s < 7; s++){
+        const inc = [0,0,0];
+        for (let j = 0; j < s; j++){
+          const aj = a[s][j];
+          for (let i = 0; i < 3; i++) inc[i] += aj * k[j][i];
+        }
+        const yarg = [y[0]+h*inc[0], y[1]+h*inc[1], y[2]+h*inc[2]];
+        k[s] = deriv(yarg, p);
+      }
+      const y5a = [0,0,0], y4a = [0,0,0];
+      for (let i = 0; i < 3; i++){
+        let s5 = 0, s4 = 0;
+        for (let s = 0; s < 7; s++){ s5 += b5[s]*k[s][i]; s4 += b4[s]*k[s][i]; }
+        y5a[i] = y[i] + h*s5; y4a[i] = y[i] + h*s4;
+      }
+      errmax = 0;
+      for (let i = 0; i < 3; i++){
+        const sc = atol + rtol*Math.max(Math.abs(y[i]), Math.abs(y5a[i]));
+        const e = Math.abs(y5a[i] - y4a[i])/sc;
+        if (e > errmax) errmax = e;
+      }
+      if (errmax <= 1){ y5 = y5a.map(v => Math.max(v, 1e-12)); accepted = true; break; }
+      h = Math.max(hmin, h * Math.max(0.1, 0.9*Math.pow(errmax, -0.25)));
+      if (h <= hmin){ y5 = y5a.map(v => Math.max(v, 1e-12)); accepted = true; break; }
+    }
+    t += h;
+    y = y5;
+    pts.push({ t, y: y.slice() });
+    const f = errmax > 1e-12 ? 0.9*Math.pow(errmax, -0.2) : 5;
+    h = Math.min(hmax, h * Math.max(0.1, Math.min(5, f)));
+  }
+  return pts;
+}
+
+function simulate(){ return rk45([P.E0, P.T0, P.IL0], 0, P.Tmax, P); }
+
+/* ---------- formatting ---------- */
+const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+function supStr(n){ return String(n).split('').map(ch => SUP[ch]||ch).join(''); }
+function sci(x){
+  if (x === 0) return '0';
+  if (!isFinite(x)) return '∞';
+  const ax = Math.abs(x);
+  const e = Math.floor(Math.log10(ax));
+  const m = x / Math.pow(10, e);
+  const mm = Math.abs(m) >= 9.95 ? 1 : m;
+  const ee = Math.abs(m) >= 9.95 ? e + 1 : e;
+  return mm.toFixed(2).replace(/\.?0+$/,'') + '×10' + supStr(ee);
+}
+function fmt(x){
+  if (x === 0) return '0';
+  if (!isFinite(x)) return '∞';
+  const ax = Math.abs(x);
+  if (ax >= 1e5 || ax < 1e-3) return sci(x);
+  if (ax >= 1) return ax.toFixed(ax >= 100 ? 1 : 2).replace(/\.0+$/,'');
+  return ax.toPrecision(2);
+}
+
+/* ---------- sliders ---------- */
+const SLIDERS = [];
+function addSlider(groupId, cfg){
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const range = document.createElement('input');
+  range.type = 'range'; range.min = 0; range.max = 1000; range.step = 1;
+
+  function posFromVal(v){
+    if (cfg.log){
+      if (cfg.zeroAtMin && v <= 0) return 0;
+      return (Math.log10(v) - cfg.expMin) / (cfg.expMax - cfg.expMin) * 1000;
+    }
+    return (v - cfg.min) / (cfg.max - cfg.min) * 1000;
+  }
+  function valFromPos(p){
+    if (cfg.log){
+      if (cfg.zeroAtMin && p <= 0) return 0;
+      const e = cfg.expMin + (p/1000)*(cfg.expMax - cfg.expMin);
+      return Math.pow(10, e);
+    }
+    return cfg.min + (p/1000)*(cfg.max - cfg.min);
+  }
+  range.value = Math.round(posFromVal(cfg.value));
+
+  const row = document.createElement('div'); row.className = 'row';
+  const label = document.createElement('label');
+  const val = document.createElement('span'); val.className = 'val';
+  label.textContent = cfg.label;
+  label.title = cfg.title || '';
+  row.appendChild(label); row.appendChild(val);
+  wrap.appendChild(row); wrap.appendChild(range);
+
+  function refresh(){
+    const v = valFromPos(Number(range.value));
+    P[cfg.id] = v;
+    val.textContent = fmt(v) + (cfg.unit ? ' ' + cfg.unit : '');
+  }
+  function setFromValue(v){ range.value = Math.round(posFromVal(v)); refresh(); }
+  range.addEventListener('input', () => { refresh(); scheduleRender(); });
+  refresh();
+  document.getElementById(groupId).appendChild(wrap);
+  SLIDERS.push({ cfg, setFromValue, refresh });
+}
+
+function setAllSliders(){
+  for (const s of SLIDERS) s.setFromValue(P[s.cfg.id]);
+}
+
+/* ---------- slider configs ---------- */
+addSlider('group-core', { id:'c',  label:'肿瘤抗原性 c',  min:0,    max:0.05, value:P.c,    title:'肿瘤与“自身”的差异程度（0~0.05）' });
+addSlider('group-core', { id:'a',  label:'免疫杀伤强度 a', min:0,    max:5,    value:P.a,    title:'免疫反应强度' });
+addSlider('group-core', { id:'s1', label:'ACI 治疗 s₁',    min:0,    max:2000, value:P.s1,   title:'过继性细胞免疫治疗输入（阈值 540）' });
+addSlider('group-core', { id:'s2', label:'IL-2 输入 s₂',   log:true, expMin:0, expMax:8, zeroAtMin:true, value:P.s2, title:'IL-2 输注（阈值 ≈6.35×10⁷）' });
+
+addSlider('group-ic', { id:'E0',  label:'E(0) 效应细胞',  log:true, expMin:1, expMax:9, value:P.E0 });
+addSlider('group-ic', { id:'T0',  label:'T(0) 肿瘤细胞',  log:true, expMin:1, expMax:9, value:P.T0 });
+addSlider('group-ic', { id:'IL0', label:'I_L(0)',          log:true, expMin:0, expMax:7, zeroAtMin:true, value:P.IL0 });
+
+addSlider('group-sim', { id:'Tmax', label:'模拟时长 (天)', min:50, max:5000, value:P.Tmax });
+
+addSlider('group-adv', { id:'r2',  label:'肿瘤生长率 r₂',        min:0, max:0.5, value:P.r2 });
+addSlider('group-adv', { id:'b',   label:'b（承载量 = 1/b）',     log:true, expMin:-11, expMax:-7, value:P.b });
+addSlider('group-adv', { id:'mu2', label:'效应细胞死亡率 μ₂',    min:0, max:0.2, value:P.mu2 });
+addSlider('group-adv', { id:'p1',  label:'效应细胞增殖率 p₁',    min:0, max:0.5, value:P.p1 });
+addSlider('group-adv', { id:'mu3', label:'IL-2 衰减率 μ₃',       min:0, max:50,  value:P.mu3 });
+addSlider('group-adv', { id:'p2',  label:'IL-2 生成率 p₂',       min:0, max:20,  value:P.p2 });
+addSlider('group-adv', { id:'g1',  label:'饱和常数 g₁',          log:true, expMin:6, expMax:8, value:P.g1 });
+addSlider('group-adv', { id:'g2',  label:'饱和常数 g₂',          log:true, expMin:3, expMax:7, value:P.g2 });
+addSlider('group-adv', { id:'g3',  label:'饱和常数 g₃',          log:true, expMin:2, expMax:5, value:P.g3 });
+
+/* ---------- presets ---------- */
+const PRESETS = [
+  { name:'无治疗 · 周期性复发', desc:'c=0.03，无治疗，约 140 天周期的小幅振荡',
+    set:{ c:0.03, a:1, s1:0, s2:0, E0:1e5, T0:1e5, IL0:0, Tmax:700 } },
+  { name:'长期复发（大振幅慢周期）', desc:'c=0.01，肿瘤在“休眠”与近承载量间缓慢振荡',
+    set:{ c:0.01, a:1, s1:0, s2:0, E0:1e5, T0:1e5, IL0:0, Tmax:4000 } },
+  { name:'低抗原 · 大肿瘤', desc:'c=5×10⁻⁵，免疫无法识别，肿瘤长到承载量',
+    set:{ c:5e-5, a:1, s1:0, s2:0, E0:1e5, T0:1e5, IL0:0, Tmax:1500 } },
+  { name:'ACI 治疗 · 清除', desc:'s₁=1000 > 阈值 540，肿瘤被清除',
+    set:{ c:0.01, a:1, s1:1000, s2:0, E0:1e5, T0:1e5, IL0:0, Tmax:700 } },
+  { name:'IL-2 过量 · 免疫失控', desc:'s₂=10⁸ > 阈值 6.35×10⁷，免疫无界增殖',
+    set:{ c:0.01, a:1, s1:0, s2:1e8, E0:1e5, T0:1e5, IL0:0, Tmax:400 } },
+  { name:'联合治疗（ACI + IL-2）', desc:'s₁=600 + s₂=10⁵，协同清除肿瘤',
+    set:{ c:0.01, a:1, s1:600, s2:1e5, E0:1e5, T0:1e5, IL0:0, Tmax:700 } },
+];
+(function buildPresets(){
+  const box = document.getElementById('presets');
+  for (const pr of PRESETS){
+    const b = document.createElement('button');
+    b.innerHTML = `${pr.name}<small>${pr.desc}</small>`;
+    b.addEventListener('click', () => { Object.assign(P, pr.set); setAllSliders(); render(); });
+    box.appendChild(b);
+  }
+})();
+
+/* ---------- thresholds & classification ---------- */
+function thresholds(p){
+  const s1thr = p.r2*p.g2*p.mu2/p.a;
+  const s2thr = (p.p1 > p.mu2) ? p.mu2*p.mu3*p.g1/(p.p1 - p.mu2) : Infinity;
+  return { s1thr, s2thr };
+}
+
+function classify(pts, p){
+  const capacity = 1/p.b;
+  const n = pts.length;
+  const st = Math.max(0, Math.floor(n*0.5));
+  let Tmax = 0, Tmin = Infinity;
+  for (let i = st; i < n; i++){
+    const T = pts[i].y[1];
+    if (T > Tmax) Tmax = T;
+    if (T < Tmin) Tmin = T;
+  }
+  const Tend = pts[n-1].y[1];
+  const { s2thr } = thresholds(p);
+
+  if (p.p1 > p.mu2 && p.s2 > s2thr){
+    return { color:'critical', label:'免疫系统失控增殖（IL-2 过量 · 毛细血管渗漏风险）',
+             note:'肿瘤虽被清除，但效应细胞 E 无界增长。' };
+  }
+  if (Tmax > 0.01*capacity && Tmin < 1){
+    return { color:'serious', label:'长期复发（大振幅周期振荡）',
+             note:'肿瘤在“休眠”与接近承载容量之间周期性复发。' };
+  }
+  let peaks = 0, up = false, prev = pts[st].y[1];
+  for (let i = st+1; i < n; i++){
+    const v = pts[i].y[1];
+    if (v > prev*1.15 && !up){ up = true; }
+    else if (v < prev*0.85 && up){ peaks++; up = false; }
+    prev = v;
+  }
+  if (Tmin >= 1 && peaks >= 3 && Tmax < 0.01*capacity){
+    return { color:'serious', label:'周期性复发（小振幅振荡）',
+             note:'肿瘤与免疫系统呈稳定极限环，出现短周期振荡。' };
+  }
+  if (Tend < 1){
+    return { color:'good', label:'肿瘤清除（无瘤状态）', note:'免疫系统成功清除肿瘤。' };
+  }
+  if (Tend > 0.5*capacity){
+    return { color:'serious', label:'大肿瘤（接近承载容量）',
+             note:'免疫系统无法控制肿瘤，肿瘤稳定于承载量附近。' };
+  }
+  const T80 = pts[Math.floor(n*0.8)].y[1];
+  if (Tend > T80*2){
+    return { color:'serious', label:'肿瘤持续生长中',
+             note:'当前时间窗内肿瘤仍在增长，请延长模拟时长观察其归宿。' };
+  }
+  return { color:'good', label:'休眠小肿瘤（稳定）',
+           note:'肿瘤被压制于较小的稳定规模，处于休眠状态。' };
+}
+
+/* ---------- drawing helpers ---------- */
+function fitCanvas(cv){
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  const pw = Math.round(rect.width * dpr);
+  const ph = Math.round(rect.height * dpr);
+  if (cv.width !== pw || cv.height !== ph){ cv.width = pw; cv.height = ph; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function niceTicks(min, max, target){
+  const span = max - min;
+  const raw = span / Math.max(1, target);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  let step = mag;
+  if (norm < 1.5) step = mag;
+  else if (norm < 3.5) step = 2*mag;
+  else if (norm < 7.5) step = 5*mag;
+  else step = 10*mag;
+  const ticks = [];
+  let t = Math.ceil(min/step)*step;
+  for (; t <= max + step*0.5; t += step) ticks.push(t);
+  return ticks;
+}
+
+function logAxisRange(vals, floorExp){
+  let mn = 12, mx = -12;
+  for (const v of vals){
+    if (v <= 0) continue;
+    const l = Math.log10(v);
+    if (l < mn) mn = l;
+    if (l > mx) mx = l;
+  }
+  return [Math.max(floorExp, Math.floor(mn)), Math.ceil(mx)];
+}
+
+/* ---------- rendering ---------- */
+let sim = null;
+
+function renderOutcome(pts){
+  const el = document.getElementById('outcome');
+  const c = classify(pts, P);
+  const th = thresholds(P);
+  const last = pts[pts.length-1];
+  el.innerHTML = `
+    <span class="badge" style="background:${c.color}22; color:${c.color}; border:1px solid ${c.color}55">
+      <span style="width:8px;height:8px;border-radius:50%;background:${c.color};display:inline-block"></span>${c.label}
+    </span>
+    <div class="metrics">
+      <div class="metric"><div class="k">效应细胞 E</div><div class="v">${sci(last.y[0])}<small> 细胞</small></div></div>
+      <div class="metric"><div class="k">肿瘤 T</div><div class="v">${sci(last.y[1])}<small> 细胞</small></div></div>
+      <div class="metric"><div class="k">IL-2</div><div class="v">${sci(last.y[2])}<small> 浓度</small></div></div>
+    </div>
+    <div class="thresholds">
+      <span>ACI 阈值 <b>s₁* = ${fmt(th.s1thr)}</b>${P.s1 > th.s1thr ? '（当前已超）' : '（未达）'}</span>
+      <span>IL-2 阈值 <b>s₂* = ${th.s2thr === Infinity ? '∞' : fmt(th.s2thr)}</b>${P.s2 > th.s2thr ? '（当前已超）' : ''}</span>
+    </div>
+    <div style="flex-basis:100%;font-size:11.5px;color:var(--muted)">${c.note} <em style="opacity:.7">（判断基于当前时间窗）</em></div>`;
+}
+
+function renderTime(pts){
+  const cv = document.getElementById('cvTime');
+  const { ctx, w, h } = fitCanvas(cv);
+  const pal = palette();
+  ctx.clearRect(0,0,w,h);
+  const pad = { l: 52, r: 14, t: 14, b: 30 };
+
+  const allVals = []; for (const q of pts) allVals.push(q.y[0], q.y[1], q.y[2]);
+  const [yExpMin, yExpMax] = logAxisRange(allVals, -3);
+  const xmin = 0, xmax = P.Tmax;
+  const xTicks = niceTicks(0, P.Tmax, 7);
+
+  // y grid + labels
+  for (let e = yExpMin; e <= yExpMax; e++){
+    const y = h - pad.b - (e - yExpMin)/(yExpMax - yExpMin)*(h - pad.t - pad.b);
+    ctx.strokeStyle = (e === yExpMin) ? pal.baseline : pal.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillStyle = pal.muted; ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(e === 0 ? '1' : '10'+supStr(e), pad.l - 6, y);
+  }
+  // x ticks
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const t of xTicks){
+    if (t < xmin - 1e-9 || t > xmax + 1e-9) continue;
+    const x = pad.l + (t - xmin)/(xmax - xmin)*(w - pad.l - pad.r);
+    ctx.strokeStyle = pal.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+    ctx.fillStyle = pal.muted;
+    ctx.fillText(fmt(t), x, h - pad.b + 5);
+  }
+  // axis labels
+  ctx.fillStyle = pal.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('时间 t (天)', pad.l + (w-pad.l-pad.r)/2, h - 2);
+  ctx.save();
+  ctx.translate(14, pad.t + (h-pad.t-pad.b)/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('细胞数 / IL-2 水平 (log₁₀)', 0, 0);
+  ctx.restore();
+  ctx.strokeStyle = pal.baseline; ctx.lineWidth = 1;
+  ctx.strokeRect(pad.l, pad.t, w - pad.l - pad.r, h - pad.t - pad.b);
+
+  const sx = (t) => pad.l + (t - xmin)/(xmax - xmin)*(w - pad.l - pad.r);
+  const sy = (v) => {
+    const l = Math.log10(Math.max(v, Math.pow(10, yExpMin)));
+    return h - pad.b - (l - yExpMin)/(yExpMax - yExpMin)*(h - pad.t - pad.b);
+  };
+
+  const series = [pal.s1, pal.s2, pal.s3];
+  const stride = Math.max(1, Math.floor(pts.length / 4000));
+  for (let i = 0; i < 3; i++){
+    ctx.strokeStyle = series[i]; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    let first = true;
+    for (let k = 0; k < pts.length; k += stride){
+      const x = sx(pts[k].t), y = sy(pts[k].y[i]);
+      if (first){ ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+    }
+    const lk = pts.length - 1;
+    ctx.lineTo(sx(pts[lk].t), sy(pts[lk].y[i]));
+    ctx.stroke();
+  }
+  cv._hover = { sx, sy, pts, pad };
+}
+
+function renderPhase(pts){
+  const cv = document.getElementById('cvPhase');
+  const { ctx, w, h } = fitCanvas(cv);
+  const pal = palette();
+  ctx.clearRect(0,0,w,h);
+  const pad = { l: 52, r: 16, t: 14, b: 34 };
+
+  const Ts = pts.map(q => q.y[1]), Es = pts.map(q => q.y[0]);
+  const [xExpMin, xExpMax] = logAxisRange(Ts, -3);
+  const [yExpMin, yExpMax] = logAxisRange(Es, -3);
+
+  // grid
+  for (let e = xExpMin; e <= xExpMax; e++){
+    const x = pad.l + (e - xExpMin)/(xExpMax - xExpMin)*(w - pad.l - pad.r);
+    ctx.strokeStyle = pal.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+    ctx.fillStyle = pal.muted; ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(e === 0 ? '1' : '10'+supStr(e), x, h - pad.b + 5);
+  }
+  for (let e = yExpMin; e <= yExpMax; e++){
+    const y = h - pad.b - (e - yExpMin)/(yExpMax - yExpMin)*(h - pad.t - pad.b);
+    ctx.strokeStyle = pal.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillStyle = pal.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(e === 0 ? '1' : '10'+supStr(e), pad.l - 6, y);
+  }
+  // labels
+  ctx.fillStyle = pal.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('肿瘤细胞 T (log₁₀)', pad.l + (w-pad.l-pad.r)/2, h - 2);
+  ctx.save();
+  ctx.translate(14, pad.t + (h-pad.t-pad.b)/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('效应细胞 E (log₁₀)', 0, 0);
+  ctx.restore();
+  ctx.strokeStyle = pal.baseline; ctx.strokeRect(pad.l, pad.t, w - pad.l - pad.r, h - pad.t - pad.b);
+
+  const px = (v) => { const l = Math.log10(Math.max(v, Math.pow(10,xExpMin))); return pad.l + (l - xExpMin)/(xExpMax - xExpMin)*(w - pad.l - pad.r); };
+  const py = (v) => { const l = Math.log10(Math.max(v, Math.pow(10,yExpMin))); return h - pad.b - (l - yExpMin)/(yExpMax - yExpMin)*(h - pad.t - pad.b); };
+
+  // time-colored trajectory (segments)
+  const N = pts.length, tEnd = pts[N-1].t || 1;
+  const stride = Math.max(1, Math.floor(N / 6000));
+  for (let k = 1; k < N; k += stride){
+    const frac = pts[k].t / tEnd;
+    const ci = Math.max(0, Math.min(seqRamp.length-1, Math.round(frac*(seqRamp.length-1))));
+    ctx.strokeStyle = seqRamp[ci]; ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(px(pts[k-1].y[1]), py(pts[k-1].y[0]));
+    ctx.lineTo(px(pts[k].y[1]),   py(pts[k].y[0]));
+    ctx.stroke();
+  }
+  // start marker
+  ctx.fillStyle = pal.surface; ctx.strokeStyle = pal.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(px(pts[0].y[1]), py(pts[0].y[0]), 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // end marker
+  ctx.fillStyle = seqRamp[seqRamp.length-1]; ctx.strokeStyle = pal.ink;
+  ctx.beginPath(); ctx.arc(px(pts[N-1].y[1]), py(pts[N-1].y[0]), 4.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = pal.ink2; ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText('起点', px(pts[0].y[1]) + 8, py(pts[0].y[0]));
+  ctx.fillText('终点', px(pts[N-1].y[1]) + 8, py(pts[N-1].y[0]));
+}
+
+/* ---------- hover on time series ---------- */
+const tipEl = document.getElementById('tip');
+document.getElementById('cvTime').addEventListener('mousemove', (ev) => {
+  const cv = ev.currentTarget;
+  const H = cv._hover; if (!H) return;
+  const rect = cv.getBoundingClientRect();
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+  const xmin = 0, xmax = P.Tmax;
+  const t = xmin + (mx - H.pad.l)/(rect.width - H.pad.l - H.pad.r)*(xmax - xmin);
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < H.pts.length; i++){
+    const d = Math.abs(H.pts[i].t - t);
+    if (d < bd){ bd = d; best = i; }
+  }
+  const q = H.pts[best], pal = palette();
+  tipEl.innerHTML = `<div class="tlabel">t = ${q.t.toFixed(1)} 天</div>
+    <div class="trow"><span><span class="dot" style="background:${pal.s1}"></span>E</span><span>${sci(q.y[0])}</span></div>
+    <div class="trow"><span><span class="dot" style="background:${pal.s2}"></span>T</span><span>${sci(q.y[1])}</span></div>
+    <div class="trow"><span><span class="dot" style="background:${pal.s3}"></span>IL-2</span><span>${sci(q.y[2])}</span></div>`;
+  tipEl.style.display = 'block';
+  tipEl.style.left = Math.min(rect.width - 160, mx + 12) + 'px';
+  tipEl.style.top = Math.max(2, my - 24) + 'px';
+
+  // redraw base + crosshair
+  renderTime(sim);
+  const { ctx, w, h } = fitCanvas(cv);
+  ctx.strokeStyle = pal.muted; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(mx, H.pad.t); ctx.lineTo(mx, h - H.pad.b); ctx.stroke();
+  ctx.setLineDash([]);
+});
+document.getElementById('cvTime').addEventListener('mouseleave', () => { tipEl.style.display = 'none'; });
+
+/* ---------- main render / schedule ---------- */
+let raf = null;
+function scheduleRender(){
+  if (raf) cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => { raf = null; render(); });
+}
+function render(){
+  sim = simulate();
+  renderOutcome(sim);
+  renderTime(sim);
+  renderPhase(sim);
+}
+function draw(){ if (!sim) return; renderOutcome(sim); renderTime(sim); renderPhase(sim); }
+
+/* ---------- buttons ---------- */
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const cur = root.getAttribute('data-theme');
+  const next = (cur === 'dark') ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  document.getElementById('gradBar').style.background = gradient();
+  draw();
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  Object.assign(P, JSON.parse(JSON.stringify(DEFAULTS)));
+  setAllSliders();
+  render();
+});
+document.getElementById('btnExport').addEventListener('click', () => {
+  const rows = ['t,E,T,IL'];
+  for (const q of sim) rows.push(`${q.t.toFixed(6)},${q.y[0]},${q.y[1]},${q.y[2]}`);
+  const blob = new Blob([rows.join('\n')], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tumor_immune_sim.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+function gradient(){
+  return `linear-gradient(90deg, ${seqRamp[0]}, ${seqRamp[seqRamp.length-1]})`;
+}
+window.addEventListener('resize', draw);
+
+/* ---------- boot ---------- */
+document.getElementById('gradBar').style.background = gradient();
+render();
+</script>
+</body>
+</html>
